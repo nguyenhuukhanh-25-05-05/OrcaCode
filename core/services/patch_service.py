@@ -384,6 +384,10 @@ class PatchService:
         if not calls and ("```" in ai_response or "`" in ai_response):
             calls = self._parse_codeblock_fallback(ai_response)
 
+        # 10. Fallback: model outputs JSON array [{file, code}, ...]
+        if not calls and ('"file"' in ai_response or '"path"' in ai_response):
+            calls = self._parse_json_fallback(ai_response)
+
         return calls
 
     def _parse_codeblock_fallback(self, ai_response: str) -> list[dict]:
@@ -437,7 +441,58 @@ class PatchService:
                             "content": content,
                             "_fallback": True,
                         })
+        return calls
+
+    def _parse_json_fallback(self, ai_response: str) -> list[dict]:
+        """Fallback for models that output JSON array of file objects.
+
+        Detects patterns like:
+          [{"file": "src/app.py", "code": "print(1)"}]
+          [{"path": "index.html", "content": "<html>..."}]
+          [{"file": "a.js", "code": "..."}, {"file": "b.css", "code": "..."}]
+        """
+        import json
+        import re
+        calls = []
+
+        # Extract JSON array from response
+        json_match = re.search(r'\[\s*\{.*?\}\s*\]', ai_response, re.DOTALL)
+        if not json_match:
+            # Try ```json ... ``` fenced block
+            json_match = re.search(r'```(?:json)?\s*\n(\[.*?\])\s*```', ai_response, re.DOTALL)
+        if not json_match:
             return calls
+
+        try:
+            json_str = json_match.group(1) if json_match.lastindex else json_match.group(0)
+            # LLM output often has unescaped newlines in JSON string values
+            # Fix: escape literal newlines/returns/tabs inside quoted strings
+            json_str = re.sub(
+                r'"([^"\\]*(?:\\.[^"\\]*)*)"',
+                lambda m: '"' + m.group(1).replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t') + '"',
+                json_str,
+            )
+            data = json.loads(json_str)
+        except (json.JSONDecodeError, TypeError, IndexError):
+            return calls
+
+        if not isinstance(data, list):
+            return calls
+
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            path = item.get("file") or item.get("path") or item.get("filename") or ""
+            code = item.get("code") or item.get("content") or item.get("source") or ""
+            if path and code and len(code) > 5:
+                calls.append({
+                    "type": "write_file",
+                    "path": path.strip(),
+                    "content": code.strip(),
+                    "_fallback": True,
+                })
+
+        return calls
 
         # Pattern 2: "Here is the code for X" → try to extract filename from nearby text
         named_blocks = re.findall(
