@@ -1,0 +1,99 @@
+﻿============================================================
+OrcaCode Performance Baseline
+============================================================
+
+[1] Import time (core.agent + all deps)
+    Import duration: 3844.9 ms
+    Memory (current): 13767.1 KB
+    Memory (peak):    13803.4 KB
+
+[2] AgentController construction
+    Construction: 0.2 ms
+    Memory (current): 8.1 KB
+    Memory (peak):    8.1 KB
+
+[3] Lazy service access times (first access)
+    anchor_patcher                46.6 ╡s
+    blueprint_svc             449933.1 ╡s
+    checkpoint_svc              6591.4 ╡s
+    context_svc               460799.4 ╡s
+    debug_svc                    944.1 ╡s
+    error_pipeline             16455.1 ╡s
+    file_backup                 3252.4 ╡s
+    long_memory                21374.2 ╡s
+    memory                      2875.7 ╡s
+    patch_svc                  95059.0 ╡s
+    patch_vm                    1115.9 ╡s
+    plugin_svc                  1074.7 ╡s
+    section_parser              6775.2 ╡s
+    security_svc                6527.1 ╡s
+    session_vm                  2913.2 ╡s
+    smart_context               1225.8 ╡s
+    structural_validator        1990.6 ╡s
+
+    Total lazy time: 1078953.5 ╡s
+
+[4] Line counts by module
+    agent.py                                  2337 lines
+    tui\app.py                                1173 lines
+    services\long_memory.py                    680 lines
+    tui\modals.py                              626 lines
+    services\arch_graph.py                     584 lines
+    services\error_pipeline.py                 482 lines
+    services\codegraph_service.py              454 lines
+    tui\css.py                                 408 lines
+    services\context_service.py                400 lines
+    services\error_parser.py                   397 lines
+    commands.py                                396 lines
+    llm\providers.py                           354 lines
+    ui.py                                      350 lines
+    services\smart_context.py                  333 lines
+    prompts\system.py                          323 lines
+    services\rule_engine.py                    313 lines
+    services\structural_validator.py           313 lines
+    services\blueprint_service.py              296 lines
+    services\section_parser.py                 291 lines
+    services\security_service.py               285 lines
+    services\checkpoint_service.py             273 lines
+    tui\widgets.py                             262 lines
+    services\patch_service.py                  234 lines
+    services\anchor_patcher.py                 229 lines
+    git_repo.py                                202 lines
+    tui\utils.py                               201 lines
+    memory_manager.py                          186 lines
+    pricing.py                                 172 lines
+    services\file_backup.py                    147 lines
+    summarizer.py                              123 lines
+    llm\client.py                               83 lines
+    services\debug_service.py                   80 lines
+    services\container.py                       67 lines
+    cache\conversation_cache.py                 64 lines
+    models.py                                   61 lines
+    tui.py                                      46 lines
+    services\plugin_service.py                  44 lines
+    viewmodels\session_vm.py                    44 lines
+    tui\__init__.py                             42 lines
+    viewmodels\patch_vm.py                      40 lines
+    llm\exceptions.py                           39 lines
+    orchestrator\dispatcher.py                  22 lines
+    llm\__init__.py                             17 lines
+    __init__.py                                 10 lines
+    prompts\__init__.py                          9 lines
+    cache\__init__.py                            5 lines
+    orchestrator\__init__.py                     5 lines
+    services\__init__.py                         0 lines
+    viewmodels\__init__.py                       0 lines
+    ------------------------------------------------
+    TOTAL                                    13502 lines
+
+[5] Async methods in AgentController
+    Async methods: 6
+    Sync methods:  31
+
+[6] Eager vs lazy services
+    Eagerly resolved (in __dict__): 10
+    Lazily resolved (via __getattr__): 17
+
+============================================================
+Baseline complete. Save this output for comparison.
+============================================================

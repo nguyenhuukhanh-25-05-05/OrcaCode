@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# OrcaCode runtime data
+.orca/memory/
+.orca/diffs/
+.orca/context_cache/
+.orca/checkpoints/
+.orca/traces/
+.orca/sessions/
+.orca/cache/
+
+# Block any accidental .orcacode folder in project (keys belong in ~/.orcacode)
+.orcacode/
+
+# Plans & internal reports (khong day len GitHub)
+PLAN.md
+PROGRESS.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# References
+aider-main/
+
+# Large binaries exceeding GitHub limits (>50MB)
+vendor/cv2/cv2.pyd
+vendor/torch/lib/torch_cpu.dll
+# OrcaCode auto-generated
+.codegraph/
+specs/
+
+vendor/torch/
+vendor/torchvision/
+vendor/scipy/
+vendor/cv2/
+MiMo-Code-main/
+codegraph-main/
+aider-main/

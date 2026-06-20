@@ -1,0 +1,38 @@
+{
+  "build": {
+    "tool_name": "build",
+    "passed": false,
+    "exit_code": 1,
+    "stdout_summary": "*** Error compiling '.\\\\vendor\\\\torch\\\\testing\\\\_internal\\\\py312_intrinsics.py'...\n  File \".\\vendor\\torch\\testing\\_internal\\py312_intrinsics.py\", line 11\n    def f[T](a: \"This is a new annotation\"):  ",
+    "stderr_summary": "",
+    "elapsed": 39.71120789999986,
+    "timestamp": 1781881700.9317398
+  },
+  "lint": {
+    "tool_name": "lint",
+    "passed": false,
+    "exit_code": 1,
+    "stdout_summary": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python311\\python.exe: No module named flake8\n",
+    "stderr_summary": "",
+    "elapsed": 0.22780000000057044,
+    "timestamp": 1781881701.1611493
+  },
+  "typecheck": {
+    "tool_name": "typecheck",
+    "passed": false,
+    "exit_code": 1,
+    "stdout_summary": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python311\\python.exe: No module named mypy\n",
+    "stderr_summary": "",
+    "elapsed": 0.21428169999853708,
+    "timestamp": 1781881701.4017434
+  },
+  "test": {
+    "tool_name": "test",
+    "passed": false,
+    "exit_code": 2,
+    "stdout_summary": "\n=================================== ERRORS ====================================\n___________________ ERROR collecting tests/test_imports.py ____________________\ntests\\test_imports.py:6: in <module>\n  ",
+    "stderr_summary": "",
+    "elapsed": 20.04792119999911,
+    "timestamp": 1781881721.4636233
+  }
+}

@@ -1,0 +1,38 @@
+MAX_RESPONSE_CHARS: int = 50000
+RESPONSE_TRUNCATED_MSG: str = "\n\n[Response truncated after 50,000 chars]"
+
+MAX_EXECUTE_ITERATIONS: int = 100
+MAX_PLAN_ITERATIONS: int = 100
+MAX_FIX_ITERATIONS: int = 5
+DEFAULT_LOOP_ITERATIONS: int = 10
+
+MAX_CONSECUTIVE_FAILURES: int = 5
+
+PATCH_PARTIAL_TIMEOUT: float = 2.0
+SUBPROCESS_DEFAULT_TIMEOUT: int = 60
+SUBPROCESS_LONG_TIMEOUT: int = 300
+
+CODEGRAPH_SHORT_TIMEOUT: int = 10
+CODEGRAPH_MEDIUM_TIMEOUT: int = 30
+CODEGRAPH_LONG_TIMEOUT: int = 60
+CODEGRAPH_MAX_TIMEOUT: int = 120
+
+RIPGREP_TIMEOUT: int = 15
+SECURITY_APPROVE_TIMEOUT: int = 300
+SECURITY_RUN_TIMEOUT: int = 60
+
+# Tool tag patterns for cleaning AI responses
+import re
+TOOL_TAG_RE: re.Pattern = re.compile(
+    r'<(WRITE_FILE|PATCH_FILE|LINE_PATCH|READ_FILE|SEARCH_CODE|RUN_COMMAND|DEBUG_ERROR|REFACTOR)\b[^>]*>.*?</\1>',
+    re.DOTALL
+)
+TOOL_TAG_OPEN_RE: re.Pattern = re.compile(
+    r'<(WRITE_FILE|PATCH_FILE|LINE_PATCH|READ_FILE|SEARCH_CODE|RUN_COMMAND|DEBUG_ERROR|REFACTOR)\b[^>]*>.*',
+    re.DOTALL
+)
+ANGLE_BRACKET_RE: re.Pattern = re.compile(r'<[^>]+>')
+DONE_TAG_RE: re.Pattern = re.compile(r'<DONE\s*/>', re.IGNORECASE)
+PLAN_DONE_TAG_RE: re.Pattern = re.compile(r'<PLAN_DONE\s*/>', re.IGNORECASE)
+CODE_BLOCK_RE: re.Pattern = re.compile(r'```[a-zA-Z0-9+#\-]*\n.*?```', re.DOTALL)
+MULTI_NEWLINE_RE: re.Pattern = re.compile(r'\n{3,}')
