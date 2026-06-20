@@ -1,8 +1,12 @@
-# OrcaCode
+<img width="1365" height="899" alt="image" src="https://github.com/user-attachments/assets/e646ee6c-cf06-40cc-81ff-6686ed4f5ec4" /># OrcaCode
 
 Terminal-native AI coding agent. Reads, edits, and generates code directly in your project — with a full TUI, multi-provider AI, automatic error correction, and long-running task memory.
 
-<img width="1487" height="840" alt="OrcaCode TUI" src="https://github.com/user-attachments/assets/4b506620-1210-4a74-b537-263731cdf636" />
+<img width="968" height="710" alt="image" src="https://github.com/user-attachments/assets/a29cf6d6-ca16-40e2-8bca-4e430a774770" />
+
+<img width="1365" height="899" alt="image" src="https://github.com/user-attachments/assets/111edbeb-5c52-4143-bb1e-973b90e2a825" />
+
+<img width="1348" height="900" alt="image" src="https://github.com/user-attachments/assets/62e2d2bc-4378-4ffb-8171-dbb4a1b10009" />
 
 ---
 
