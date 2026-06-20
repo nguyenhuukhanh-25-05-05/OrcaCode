@@ -320,7 +320,7 @@ OrcaCode's architecture was built by studying and integrating techniques from th
 | **OpenHands** (formerly OpenDevin) | Autonomous agent orchestration, sandboxed execution |
 | **Cline** (formerly Claude Dev) | Multi-mode execution, terminal integration, tool chaining |
 | **CodeWhale** | Terminal-based coding agent with streaming responses |
-| **CodeGraph** | Codebase indexing, symbol-level dependency graphs |
+| **CodeGraph** by Colby McHenry | Codebase indexing and symbol-level dependency graph. OrcaCode integrates CodeGraph CLI (MIT) via `core/services/codegraph_service.py` for code intelligence queries (symbol search, caller/callee analysis, semantic exploration). |
 
 UI design references: shadcn/ui, Radix UI, Headless UI, daisyUI, Chakra UI, Framer Motion, GSAP.
 
@@ -328,4 +328,9 @@ UI design references: shadcn/ui, Radix UI, Headless UI, daisyUI, Chakra UI, Fram
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+### Third-Party Notices
+
+- **CodeGraph** (`codegraph-main/`) is copyright (c) 2026 Colby McHenry, licensed under MIT. OrcaCode integrates it as an optional external CLI tool via `core/services/codegraph_service.py`. CodeGraph source is not redistributed in this repository.
+- Vendored Python libraries under `vendor/` retain their original licenses. See each `*.dist-info/licenses/` directory for details.
