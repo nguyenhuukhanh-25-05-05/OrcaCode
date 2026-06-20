@@ -380,4 +380,80 @@ class PatchService:
                             "_truncated": True,
                         })
                         
+        # 9. Fallback: model didn't use any tool tags → detect code blocks as WRITE_FILE
+        if not calls and ("```" in ai_response or "`" in ai_response):
+            calls = self._parse_codeblock_fallback(ai_response)
+
+        return calls
+
+    def _parse_codeblock_fallback(self, ai_response: str) -> list[dict]:
+        """Fallback for models that output code as markdown/literal instead of tool tags.
+
+        Detects patterns like:
+          - `file: path/to/file.ext` followed by ```code```
+          - `create path/to/file.ext` followed by code block
+          - Plain fenced code blocks with language hints as extensions
+        """
+        import re
+        calls = []
+
+        # Pattern 1: filename hint before code block
+        #   file: src/app.py
+        #   files: a.js, b.css
+        #   ```python
+        #   code here
+        #   ```
+        # Match single file hint
+        file_hint = re.findall(
+            r'(?:files?|path|tạo|create|write|ghi|viết)\s*[:=]\s*([\w/\-\.]+\.\w{1,6})',
+            ai_response, re.IGNORECASE,
+        )
+        # Also match comma/and-separated file lists: files: a.js, b.css, c.html
+        multi_file = re.search(
+            r'(?:files?|path)\s*[:=]\s*(.+?)(?:\n|$)',
+            ai_response, re.IGNORECASE,
+        )
+        if multi_file:
+            extra = re.findall(r'([\w/\-\.]+\.\w{1,6})', multi_file.group(1))
+            for f in extra:
+                if f not in file_hint:
+                    file_hint.append(f)
+
+        # Find all fenced code blocks: ```lang\n code \n```
+        code_blocks = re.findall(
+            r'```(?:\w+)?\s*\n(.*?)```',
+            ai_response, re.DOTALL,
+        )
+
+        if file_hint and code_blocks:
+            # Pair first file hint with first code block
+            for i, path in enumerate(file_hint):
+                if i < len(code_blocks):
+                    content = code_blocks[i].strip()
+                    if content and len(content) > 10:  # Skip trivial inline snippets
+                        calls.append({
+                            "type": "write_file",
+                            "path": path.strip(),
+                            "content": content,
+                            "_fallback": True,
+                        })
+            return calls
+
+        # Pattern 2: "Here is the code for X" → try to extract filename from nearby text
+        named_blocks = re.findall(
+            r'(?:for|cho|cho file)\s+[`"]?([\w/\-\.]+\.\w{1,6})[`"]?',
+            ai_response, re.IGNORECASE,
+        )
+        if named_blocks and code_blocks:
+            for i, path in enumerate(named_blocks):
+                if i < len(code_blocks):
+                    content = code_blocks[i].strip()
+                    if content and len(content) > 20:
+                        calls.append({
+                            "type": "write_file",
+                            "path": path.strip(),
+                            "content": content,
+                            "_fallback": True,
+                        })
+
         return calls
