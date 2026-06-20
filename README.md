@@ -311,7 +311,16 @@ docker run -it --rm \
 
 ## Credits
 
-Built by studying and integrating techniques from Aider, Cline, Claude Code, Roo Code, OpenHands, and other open-source AI coding tools.
+OrcaCode's architecture was built by studying and integrating techniques from these open-source projects:
+
+| Project | What was learned |
+|---------|-----------------|
+| **Aider** | Map-reduce context assembly, repository map generation, edit formats |
+| **OpenCode** | Terminal-native agent patterns, subagent architecture, plan-review-execute flow |
+| **OpenHands** (formerly OpenDevin) | Autonomous agent orchestration, sandboxed execution |
+| **Cline** (formerly Claude Dev) | Multi-mode execution, terminal integration, tool chaining |
+| **CodeWhale** | Terminal-based coding agent with streaming responses |
+| **CodeGraph** | Codebase indexing, symbol-level dependency graphs |
 
 UI design references: shadcn/ui, Radix UI, Headless UI, daisyUI, Chakra UI, Framer Motion, GSAP.
 
