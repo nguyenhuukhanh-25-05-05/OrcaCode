@@ -1,178 +1,105 @@
 # OrcaCode
 
-Terminal AI agent that reads, patches, and generates code directly in your project. Built in Python with a Textual TUI, supporting five AI providers with autonomous multi-agent orchestration, automatic error correction, and long-term memory.
+> Terminal AI coding agent — created by **Nguyễn Hữu Khánh** (25/05/2005)
+
+OrcaCode operates directly on your project files with a Textual TUI, five AI providers, autonomous multi-agent orchestration, automatic error correction, lossless context memory, and long-term project awareness across 500+ iteration tasks.
+
 ---
 
-## Overview
+## What's New in v2.1
 
-OrcaCode is a terminal-native AI coding agent designed to operate directly on your project files. It combines a rich Textual TUI with a modular backend capable of autonomous execution across four modes: Plan, Build, Chat, and Loop Pro.
+### Checkpoint Writer — Lossless Externalized Memory
+The biggest architectural leap. Instead of lossy context compaction that destroys information, OrcaCode periodically saves structured agent state (goal, plan, decisions, failures, modified files) to disk and rebuilds context from checkpoint + working memory tail when the LLM context window fills up.
 
-Every feature was built by studying and integrating techniques from leading open-source projects across the AI coding, animation, and design tooling ecosystems. The agent's design philosophy emphasizes local-first execution, minimal token waste, and maximum automation before escalating to AI reasoning.
-<img width="1487" height="840" alt="image" src="https://github.com/user-attachments/assets/4b506620-1210-4a74-b537-263731cdf636" />
-<img width="1483" height="841" alt="image" src="https://github.com/user-attachments/assets/ad3c4162-ff93-4e47-a442-b3747df2a67c" />
-<img width="1483" height="836" alt="image" src="https://github.com/user-attachments/assets/ca8bd8e7-2257-48bc-b2bd-212d4061000b" />
+```
+Before (lossy):          Messages → Compact → Information Loss
+After  (lossless):       Messages → Checkpoint → Rebuild Context
+```
+
+This enables stable execution across 300-500+ iterations without forgetting architectural decisions, known failures, or open issues.
+
+### Structured Subagent Contracts
+Typed delegation protocol between Planner, Reviewer, Executor, and future subagents. Every subagent output conforms to a named contract with field-level validation:
+
+- `SubagentTask` / `SubagentResult` – base typed contracts
+- `ContractValidator` – blocking/warning/info severity levels
+- `ContractRegistry` – pluggable per-type validators
+- Specialized contracts: `CodeReviewContract`, `TestGenContract`, `RefactorContract`, `SecurityAuditContract`
+- JSON + XML parser for extracting structured results from AI text
+
+### Two-Phase Review
+New `SPEC_REVIEW` state between PLAN and APPROVE catches architectural issues before code is written:
+
+- **Phase 1 (Spec Review):** 9 deterministic checks — edge case coverage, error handling, consistency, completeness, risk, dependencies, testability, sensitive files, security. Delegates risk checking to centralized `RiskChecker`.
+- **Phase 2 (Code Review):** Existing `ReviewerAgent` + security scanner + semantic detector + evidence verification.
+
+### Trace Fingerprint
+Per-iteration JSONL observability for long-run diagnostics. Each iteration logs: decision hash, messages hash, pressure level, LLM/tool counts, contract violations, consecutive failures, build failures. Auto-rotates at 5000 lines. Stored in `.orca/traces/fingerprint.jsonl`.
+
 ---
 
 ## Capabilities
 
 ### Five-Layer Error Pipeline
 
-The agent automatically detects, parses, and fixes compiler and linter errors without involving the AI model for routine corrections. Only complex semantic errors reach the AI layer.
-
 ```
 Build -> Parse -> Rule Engine -> Auto Fix -> Rebuild -> AI Fallback
 ```
 
-**Supported linters and compilers:** TypeScript (tsc), ESLint, Pylint, Pytest, Cargo (Rust), Go, MSVC, PHP.
-
-**Rule Engine** provides 20 built-in rules:
-
-| Error Pattern | Action | AI Needed |
-|--------------|--------|-----------|
-| Missing semicolons, formatting | Run `eslint --fix` or `prettier --write` | No |
-| Missing npm/pip packages | Run `npm install` or `pip install` | No |
-| Unused variables/imports | Auto-delete the line | No |
-| Missing module (cannot find) | Search file and fix import path | No |
-| Type mismatch, syntax errors | Send focused context to AI | Yes |
-
-Context filtering reduces a 100,000-line project to approximately 17 lines of focused error context before sending to AI.
+20 built-in rules for automatic fix without AI. Context filtering reduces 100K-line projects to ~17 lines of focused error context.
 
 ### Agent Swarm Teamwork
 
-Three specialized agents operate in sequence, each independently configurable with a different AI provider and model for cost optimization:
-
 ```
-Architect (planning and test design) -> Developer (code generation) -> QA (test execution)
-                                       \                             /
-                                        <------- retry loop -------->
+Architect (planning) -> Developer (code) -> QA (testing)
+                          \                  /
+                           <-- retry loop -->
 ```
 
-**Architect:** Analyzes the request, reads the codebase, creates a step-by-step implementation plan with specific test cases. Default: deepseek-reasoner or claude-3-5-sonnet.
-
-**Developer:** Implements the plan using WRITE_FILE and PATCH_FILE tools. Fixes bugs reported by QA. Default: deepseek-chat or gpt-4o.
-
-**QA:** Writes and executes automated tests, parses results, and produces detailed bug reports with file, line number, and error message. Default: gpt-4o-mini or gemini-2.0-flash.
+Each agent independently configurable with different AI providers and models.
 
 ### Textual TUI
 
-A full terminal interface with Ocean Blue dark theme, rounded corners, and four-panel layout:
-
-- **Chat Panel:** Markdown rendering with syntax highlighting for AI responses
-- **Architecture Graph Sidebar:** Live dependency tree with color-coded active files
-- **System Logs Panel:** Timestamped event stream for all tool execution
-- **Model Selector:** Provider and model switching in the top bar
-- **File Autocomplete:** Type `@` to trigger project file suggestions
-- **Security Modal:** Popup approval for destructive commands
-- **Clipboard Support:** Full Ctrl+C/V/X/A integration
-
-**Modes:**
-
-| Mode | Behavior |
-|------|----------|
-| Plan | AI generates plan; user reviews and approves before execution |
-| Build | Full autonomous execution without per-step approval |
-| Chat | Conversational only; AI explains but does not modify files |
-| Loop Pro | Infinite autonomous loop: plan approval upfront, AI writes tests and auto-fixes until all pass |
+Ocean Blue dark theme, four-panel layout: Chat Panel, Architecture Graph Sidebar, System Logs, Model Selector. Full security modal, clipboard support, file autocomplete with `@`.
 
 ### Long-Term Memory
 
-SQLite database with FTS5 full-text search across three tiers, designed for millions of events with sub-second retrieval:
-
-| Tier | Table | Content |
-|------|-------|---------|
-| Event Log | `events` | Every file edit, command execution, and tool call |
-| Task Memory | `tasks` | Lifecycle tracking with files, results, and lessons learned |
-| Knowledge Base | `knowledge` | Auto-extracted patterns from repeated tasks with occurrence counting |
-
-Search pipeline: `FTS5 query -> keyword fallback -> score ranking -> knowledge boost -> top 5 results`
+SQLite + FTS5 across three tiers (events, tasks, knowledge). Sub-second full-text search across millions of events.
 
 ### Live Architecture Graph
 
-Static import scanner for Python, JavaScript, TypeScript, Vue, CSS, and SCSS files. Builds a directed graph of project dependencies and renders as an ASCII/Unicode tree:
-
-```
-ARCH DEP GRAPH
-  orca.py (7)
-    core/agent.py (5)
-      core/services/error_pipeline.py (2)
-      core/services/rule_engine.py (1)
-```
-
-Files currently being read or edited by the AI are highlighted with a blue circle marker. Entry points marked in green. The graph is fed into AI context so the model understands project structure without re-scanning files.
+Static import scanner for Python/JS/TS/Vue/CSS/SCSS. ASCII dependency tree with color-coded active files, fed into AI context.
 
 ### Fuzzy File Patcher
 
-Three-tier matching algorithm preserves existing code without full-file overwrites:
-
-1. **Exact match:** Find the precise code block to replace
-2. **Fuzzy match (rapidfuzz >= 85%):** Handle whitespace and formatting differences  
-3. **Line-by-line fallback:** Compare individual lines; keep unchanged lines
-
-Multi-file edits use atomic rollback: if any patch in a batch fails, all previous patches in that batch are reverted.
-
-### OCR Service
-
-Extracts text from images using EasyOCR (deep learning, supports Vietnamese and English) with PyTesseract fallback. Returns word-level bounding boxes with coordinates. Integrated into the TUI composer: paste an image and the extracted text appears inline.
-
-### Project Blueprint
-
-Indexes project symbols through AST parsing (Python) and regex patterns (JavaScript, TypeScript, PHP, Ruby). Provides function, class, and method listings with file locations for context building.
+Three-tier matching: exact → fuzzy (rapidfuzz ≥85%) → line-by-line. Atomic multi-file rollback.
 
 ### Security Guard
 
-- **Blocked commands:** `rm -rf`, `format`, `dd`, `shutdown`, `del /f /s`, and destructive patterns
-- **Auto-approved read-only:** `ls`, `cat`, `git diff`, `pip list`
-- **One-time approval:** Build commands (`npm run build`, `python setup.py`)
-- **Path traversal protection:** Prevents file access outside workspace
-- **Thread-safe:** `threading.Lock` for concurrent access
+Command blocking, path traversal protection, workspace trust zones, thread-safe access.
 
-### Checkpoint System
+### Recovery & Checkpoint System
 
-Snapshot the entire workspace before major operations. Roll back to any checkpoint if the agent makes unwanted changes. Stored in `.orca/checkpoints/`.
-
-### Plugin System
-
-Register and unregister custom tools dynamically. Plugins can intercept any tool call type and provide custom execution logic.
-
-### Debug Service
-
-Parses Python and JavaScript stack traces. Extracts error type, file, line number, and function name. Reads surrounding source code context and suggests fix commands.
+- **Recovery Checkpoint:** In-memory file snapshots with automatic rollback when build quality worsens.
+- **Checkpoint Writer:** Disk-based structured agent state for lossless context rebuild at high pressure.
+- **Workspace Checkpoint:** Full zip snapshots for user-facing time-travel.
 
 ---
 
 ## Installation
 
-**Prerequisites:** Python 3.8+, Git (optional)
-
 ```bash
 git clone https://github.com/nguyenhuukhanh-25-05-05/OrcaCode.git
 cd OrcaCode
 pip install -r requirements.txt
-```
-
-**Setup wizard:**
-
-```bash
 python orca.py setup
 ```
 
-**Environment configuration (.env):**
-
+**Environment (.env):**
 ```ini
 ORCA_API_KEY=sk-your-api-key-here
 ORCA_PROVIDER=deepseek
 ORCA_MODEL=deepseek-chat
-```
-
-**Swarm mode configuration (optional, for separate API keys per agent):**
-
-```ini
-ORCA_SWARM_ARCHITECT_API_KEY=sk-anthropic-...
-ORCA_SWARM_ARCHITECT_MODEL=claude-3-5-sonnet
-ORCA_SWARM_DEVELOPER_API_KEY=sk-deepseek-...
-ORCA_SWARM_DEVELOPER_MODEL=deepseek-chat
-ORCA_SWARM_QA_API_KEY=sk-openai-...
-ORCA_SWARM_QA_MODEL=gpt-4o-mini
 ```
 
 ---
@@ -193,68 +120,78 @@ orca "Fix the auth bug in login.py"   # CLI mode
 orca.py                         Entry point
 config/                         Configuration system
 core/
-  agent.py                      Main agent controller
-  tui.py                        Textual TUI (1970 lines)
-  ui.py                         UI helpers and status bar
+  agent.py                      Main agent controller (4,000+ lines)
+  agent_tools.py                Tool executor mixin (WRITE_FILE, PATCH_FILE, etc.)
+  tui.py                        Textual TUI
   commands.py                   CLI commands
-  memory_manager.py             Session history and diff storage
-  git_repo.py                   Git integration
-  summarizer.py                 Chat conversation summarization
+  models.py                     AgentState, Plan, ExecutionMode enums
+  prompts/
+    system.py                   CHAT, PLAN, EXECUTE, DESIGN system prompts
   services/
-    error_parser.py             Parse compiler/linter output from 8 tools
-    rule_engine.py              20 auto-fix rules with priority ordering
-    error_pipeline.py           5-layer pipeline with context filtering
+    checkpoint.py               CheckpointWriter — lossless context memory
+    spec_reviewer.py            Two-Phase Review Phase 1 (9 deterministic checks)
+    subagent_contract.py        Typed SubagentTask/SubagentResult contracts
+    trace_fingerprint.py        Per-iteration JSONL observability
+    error_pipeline.py           5-layer error detection and auto-fix
+    rule_engine.py              20 auto-fix rules
+    error_parser.py             Compiler/linter output parser (8 tools)
     long_memory.py              SQLite + FTS5 memory system
-    arch_graph.py               Import dependency graph with ASCII rendering
-    swarm_service.py            Multi-agent orchestration
-    context_service.py          File discovery and keyword matching
+    arch_graph.py               Import dependency graph
+    dependency_graph.py         File-level dependency resolution
+    recovery.py                 Build-quality rollback (CheckpointManager)
     patch_service.py            Fuzzy patching with atomic rollback
-    security_service.py         Command blocking and path traversal protection
-    plugin_service.py           Extensible tool plugin system
-    debug_service.py            Stack trace parsing and analysis
-    ocr_service.py              Image text extraction
+    security_service.py         Command blocking and path safety
+    risk_checker.py             Centralized risk assessment
+    plan_validator.py           Plan quality scoring
+    plan_drift.py               Plan vs. reality drift detection
+    semantic_detector.py        Deleted/changed symbol detection
+    confidence_scorer.py        Request confidence scoring
+    intent_router.py            User intent classification
+    retry_contract.py           Failure analysis and retry logic
+    loop_detector.py            Repetitive pattern detection
+    fidelity.py                 Context fidelity measurement
+    context_assembler.py        Relevance-based context filtering
+    context_pruner.py           Pressure-graduated message pruning
+    overflow.py                 Token estimation and context pressure
+    signal.py                   Signal observation and ranking
+    code_quality.py             Architecture rules and debt tracking
+    done_engine.py              LLM-generated verification conditions
+    done_condition.py           Done condition extraction and verification
+    knowledge_freshness.py      Stale dependency tracking
+    checkpoint_service.py       Workspace zip snapshots
     blueprint_service.py        AST-based symbol indexing
-    checkpoint_service.py       Workspace snapshots
-  viewmodels/                   MVVM pattern for UI state management
-utils/                          Diff generation, text normalization, token counting
-tests/                          17 test suites
-.orca/instructions.md           Agent instructions loaded into every system prompt
+    structural_validator.py     Per-language structural integrity checks
+    anti_pattern.py             Anti-pattern detection
+  reviewer/
+    agent.py                    LLM-based code reviewer
+    models.py                   ReviewResult, ReviewIssue, ReviewCategory
+    patterns.py                 Bug pattern detection
+    security.py                 Security scanning (21 patterns)
+  validator/
+    schema_validator.py         JSON/format/section validation
+    result_validator.py         Tool result consistency
+    evidence_validator.py       Evidence validation
+  llm/
+    client.py                   Multi-provider LLM client
+    providers.py                OpenAI, Anthropic, Gemini adapters
+    context_assembler.py        Token budget management
+utils/                          Diff, text normalization, token counting
+tests/                          17+ test suites
 ```
 
 ---
 
 ## Open Source Projects Studied
 
-OrcaCode's architecture was informed by analyzing and learning from these projects:
-
-- **Aider** — AI pair programming tool with map-reduce context assembly and repository map generation
-- **Cline (VS Code)** — Autonomous coding agent with multi-mode execution and terminal integration
-- **Claude Code** — Anthropic's agentic coding tool with workspace-level understanding
-- **Roo Code** — VS Code extension with customizable agent behaviors and mode switching
-- **CodeWhale** — Terminal-based AI coding assistant with streaming response support
-- **OpenHands** — Platform for autonomous software development agents
-- **Anime.js** — JavaScript animation engine used for UI motion design patterns
-- **Three.js / React Three Fiber** — 3D rendering reference for spatial UI concepts
+Aider, Cline, Claude Code, Roo Code, CodeWhale, OpenHands, Anime.js, Three.js, React Three Fiber.
 
 ---
 
 ## Design Reference Ecosystem
 
-OrcaCode's UI design rules draw from these tools and communities:
+**Component libraries:** shadcn/ui, Headless UI, Radix UI, daisyUI, Ant Design, Chakra UI, Mantine
 
-**Component libraries referenced:** shadcn/ui, Headless UI, Radix UI, daisyUI, Ant Design, Chakra UI, Mantine
-
-**Design tool generators:** Uiverse.io, Glassmorphism.com, Neumorphism.io, cssgradient.io, Animista, cubic-bezier.com, Coolors.co, Adobe Color
-
-**Animation libraries referenced:** Framer Motion, GSAP, AOS, Lottie Web, Motion One, Swiper, Particles.js, Vanta.js, Locomotive Scroll
-
-**Design styles cataloged:** Brutalism, Glassmorphism, Swiss Minimal, Dark Premium, Organic/Biophilic, Retro Wave/Synthwave, Bauhaus, Editorial/Magazine, Holographic/Chrome, Claymorphism, Y2K, Industrial Tech, Motion-Driven, Spatial Depth
-
----
-
-## Python Libraries Integrated
-
-`openai` `rich` `textual` `rapidfuzz` `python-dotenv` `prompt-toolkit` `Pillow` `easyocr` `pytesseract` `pyinstaller` `setuptools` `pytest`
+**14 design styles cataloged:** Brutalism, Glassmorphism, Swiss Minimal, Dark Premium, Organic/Biophilic, Retro Wave/Synthwave, Bauhaus, Editorial/Magazine, Holographic/Chrome, Claymorphism, Y2K, Industrial Tech, Motion-Driven, Spatial Depth
 
 ---
 
