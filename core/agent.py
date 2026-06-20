@@ -376,6 +376,15 @@ class AgentController(ToolExecutorMixin, DiagnosticMixin):
 
         self.callbacks.on_status(f"Intent: {intent.intent} ({intent.confidence:.0%}) — {intent.reason}")
 
+        # ── Restate & Confirm: AI paraphrases the request for user confirmation ──
+        if intent.intent in ("execute", "plan") and self.client is not None:
+            confirmed = await self._restate_and_confirm(user_prompt, intent)
+            if not confirmed:
+                self.callbacks.on_chat("[#f59e0b]Đã hủy — hãy mô tả rõ hơn yêu cầu của bạn.[/#f59e0b]")
+                self._transition_to(AgentState.DONE, "user huỷ sau restate")
+                self._persist_run_state(user_prompt)
+                return
+
         if intent.intent in ("chat", "clarify"):
             if self.mode == ExecutionMode.CHAT:
                 await self._handle_simple_conversation(user_prompt, intent)
@@ -1433,6 +1442,54 @@ class AgentController(ToolExecutorMixin, DiagnosticMixin):
         except Exception:
             pass
         return None
+
+    async def _restate_and_confirm(self, user_prompt: str, intent: IntentResult) -> bool:
+        """AI restates its understanding of the request and asks for confirmation.
+
+        Returns True if user confirms, False if they want to revise.
+        Only for execute/plan intents — prevents jumping to code without understanding.
+        """
+        cb = self.callbacks
+        restate_prompt = (
+            "Người dùng vừa yêu cầu: " + user_prompt + "\n\n"
+            "Hãy diễn đạt lại yêu cầu này bằng 2-3 câu ngắn gọn để xác nhận bạn đã hiểu đúng. "
+            "Kết thúc bằng câu hỏi: 'Có đúng ý bạn không?' hoặc 'Bạn muốn tôi làm gì khác không?'\n"
+            "QUAN TRỌNG: Chỉ paraphrase, không code, không giải thích dài, không lên kế hoạch."
+        )
+        try:
+            raw, _, _, _ = _unpack_ai_result(
+                await _call_ai(self.client, self.cfg,
+                    [{"role": "user", "content": restate_prompt}],
+                    on_status=lambda s: None)
+            )
+            restated = raw.strip()
+            if not restated:
+                return True  # Fallback: proceed anyway
+
+            cb.on_chat(f"[#38bdf8]🤔 {restated}[/#38bdf8]")
+
+            # Ask user to confirm via the approval callback
+            plan_callback = getattr(cb, "request_plan_approval", None)
+            if plan_callback is not None:
+                import inspect
+                result = plan_callback(f"Xác nhận yêu cầu:\n\n{restated}")
+                if inspect.isawaitable(result):
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        loop = None
+                    if loop is not None and loop.is_running():
+                        future = asyncio.run_coroutine_threadsafe(result, loop)
+                        decision = await asyncio.wait_for(future, timeout=120)
+                    else:
+                        decision = await result
+                else:
+                    decision = result
+                return decision in ("approve", "approve_step", "approve_auto")
+            return True  # No callback → auto-confirm
+        except Exception:
+            logger.exception("Restate & Confirm failed (non-fatal)")
+            return True  # Fallback: proceed
 
     async def _generate_and_show_plan(self, user_prompt: str) -> None:
         """Generate a plan from user prompt and display it in chat. Does NOT execute."""
