@@ -16,10 +16,8 @@ git clone https://github.com/nguyenhuukhanh-25-05-05/OrcaCode.git
 cd OrcaCode
 pip install -r requirements.txt
 python orca.py setup          # enter your API key when prompted
-orca tui                      # start coding
+python orca.py tui            # start the terminal UI
 ```
-
-That's it. The setup wizard handles provider selection, API key, and model choice automatically.
 
 ---
 
@@ -27,61 +25,52 @@ That's it. The setup wizard handles provider selection, API key, and model choic
 
 OrcaCode is an AI agent that lives in your terminal and works directly on your files. You describe what you want, it plans the work, asks for approval, then executes — writing code, running commands, fixing errors, and verifying results.
 
-**Key differentiators from other coding agents:**
+**Key differentiators:**
 
-- **Doesn't forget.** After 200+ iterations, most agents lose context. OrcaCode saves structured snapshots of goals, decisions, and failures to disk, then rebuilds context losslessly.
-- **Catches plan mistakes before writing code.** A spec review phase checks for missing edge cases, error handling gaps, security risks, and dependency issues before a single line is changed.
+- **Doesn't forget.** After 200+ iterations, most agents lose context. OrcaCode saves structured snapshots of goals, decisions, and failures to disk, then rebuilds context losslessly (checkpoint.py).
+- **Catches plan mistakes before writing code.** A spec review phase (spec_reviewer.py) checks for missing edge cases, error handling gaps, security risks, and dependency issues before a single line is changed.
 - **Typed output contracts.** AI responses are parsed into structured data (not free text), so the planner, reviewer, and executor communicate with data instead of prose.
 
 ---
 
 ## Features
 
+### Three Execution Modes
+
+The agent has exactly three modes (core/models.py:ExecutionMode):
+
+| Mode | Behavior | Use case |
+|------|----------|----------|
+| **PLAN** (default) | AI generates plan → you approve → executes step-by-step | Complex multi-file tasks |
+| **AUTO** | Full autonomous, no per-step approval | Quick fixes, well-defined tasks |
+| **CHAT** | Conversational only, no file modifications | Questions, code explanations |
+
 ### TUI Interface
 
 Full terminal UI with Ocean Blue theme, four panels:
 
-| Panel | What it shows |
-|-------|--------------|
+| Panel | Shows |
+|-------|-------|
 | Chat | Markdown-rendered AI responses with syntax highlighting |
 | Architecture Graph | Live dependency tree, color-coded by file activity |
-| System Logs | Timestamped event stream of all tool executions |
+| System Logs | Timestamped event stream of tool executions |
 | Top Bar | Provider/model selector, mode indicator |
 
-**Keyboard shortcuts:** `@` triggers file autocomplete in the chat input. Full clipboard support (Ctrl+C/V/X/A). Security modal pops up for destructive command approval.
-
-### Modes
-
-| Mode | Behavior | Best for |
-|------|----------|----------|
-| **Plan** | AI generates plan → you approve → executes step-by-step | Complex multi-file tasks |
-| **Build** | Full autonomous execution, no per-step approval | Quick fixes, well-defined tasks |
-| **Chat** | Conversational only, no file modifications | Questions, code explanations |
-| **Loop Pro** | Plan approved upfront, AI writes tests and auto-fixes until all pass | Test-driven development |
+Keyboard shortcuts: `@` triggers file autocomplete in the chat input. Full clipboard support (Ctrl+C/V/X/A). Security modal pops up for destructive command approval.
 
 ### Error Pipeline
 
-When builds or tests fail, OrcaCode automatically fixes errors without wasting AI tokens:
+When builds or tests fail, OrcaCode auto-fixes errors without wasting AI tokens:
 
 ```
 Build → Parse Error → Rule Engine → Auto Fix → Rebuild → AI Fallback (only if needed)
 ```
 
-20 built-in rules handle common fixes:
-
-| Error | Auto-fix |
-|-------|----------|
-| Missing semicolons / formatting | `eslint --fix` or `prettier --write` |
-| Missing npm/pip packages | `npm install` or `pip install` |
-| Unused variables/imports | Auto-delete the offending line |
-| Missing module imports | Search project and fix import path |
-| Type mismatch, syntax errors | Escalate to AI with focused context |
-
-Context filtering compresses a 100K-line project into ~17 lines of relevant error context before hitting the AI.
+20 built-in rules (rule_engine.py) handle: missing semicolons, missing npm/pip packages, unused variables/imports, missing module imports, type mismatch, syntax errors. Context filtering compresses a 100K-line project into ~17 lines of relevant error context before hitting the AI.
 
 ### Long-Term Memory
 
-SQLite database with full-text search tracks everything across sessions:
+SQLite + FTS5 (long_memory.py) tracks across sessions:
 
 - **Event Log:** Every file edit, command run, tool call
 - **Task Memory:** Completed tasks with results and lessons
@@ -91,7 +80,7 @@ Search across all three tiers simultaneously, sub-second even with millions of e
 
 ### Architecture Graph
 
-Static import scanner builds a live dependency map of your project:
+Static import scanner (arch_graph.py, dependency_graph.py) builds a live dependency map:
 
 ```
 ARCH DEP GRAPH
@@ -101,62 +90,65 @@ ARCH DEP GRAPH
       core/services/rule_engine.py (1)
 ```
 
-Files currently being edited glow blue. Entry points marked green. The graph is fed into AI context so the model understands your project structure without re-reading files.
+Files currently being edited glow blue. Entry points marked green. The graph is fed into AI context so the model understands project structure.
 
 ### Fuzzy File Patching
 
-Three-tier matching preserves existing code without full-file overwrites:
+Three-tier matching (patch_service.py) preserves existing code:
 
 1. **Exact match** — find and replace the precise block
-2. **Fuzzy match** (≥85% similarity via rapidfuzz) — handles whitespace/formatting drift
+2. **Fuzzy match** (>=85% similarity via rapidfuzz) — handles whitespace/formatting drift
 3. **Line-by-line fallback** — keeps unchanged lines, only swaps what's different
 
-Multi-file edits use atomic rollback: if any patch in a batch fails, all previous patches in that batch are reverted.
+Multi-file edits use atomic rollback: if any patch in a batch fails, all prior patches revert.
 
 ### Context Memory (Checkpoint Writer)
 
-For tasks running 100-500+ iterations, the LLM context window inevitably fills up. Most agents solve this by compacting old messages — which loses information. OrcaCode instead saves structured state to disk:
+For tasks running 100-500+ iterations, the LLM context window fills up. Instead of lossy compaction, OrcaCode saves structured state to disk every N iterations (checkpoint.py):
 
-**What's saved every checkpoint:**
 - Original goal and approved plan
-- Architecture decisions (e.g. "chose Redux", "used JWT auth")
+- Architecture decisions (e.g., "chose Redux", "used JWT auth")
 - Recent failures and what was tried
-- Modified files list
-- Execution progress ("Step 3/7: fixing auth")
+- Modified files list + execution progress
 
-When context pressure hits, instead of lossy compression, OrcaCode rebuilds the message list from the checkpoint data plus the last 8 conversation exchanges. The AI remembers what matters.
+When context pressure hits, rebuilds the message list from checkpoint data + last 8 exchanges.
 
 ### Plan Review Before Execution
 
-Before writing any code, OrcaCode runs 9 deterministic checks on the plan:
+Before writing code, 9 deterministic checks (spec_reviewer.py) run against the plan:
 
-| Check | What it catches |
-|-------|----------------|
-| Edge case coverage | Empty inputs, large files, timeouts |
-| Error handling | Missing try/catch, no fallback for I/O |
-| Consistency | Contradictory actions (create + delete same file) |
-| Completeness | User asked for tests — plan has no test step |
-| Risk | `rm -rf`, `DROP TABLE`, force push detected |
-| Dependencies | Unnecessary new packages |
-| Testability | Code changes without verification criteria |
-| Sensitive files | Modifying `package.json`, `.env`, config files |
-| Security | User input without validation, auth without review |
+- Edge case coverage, error handling, consistency, completeness
+- Risk detection (`rm -rf`, `DROP TABLE`, force push)
+- Dependency analysis, testability, sensitive file protection, security
 
-Blocking issues are shown before you approve the plan — catching mistakes before code is written.
+Blocking issues are shown **before** you approve — catching mistakes before code is written.
 
 ### Security
 
 - Blocks destructive commands: `rm -rf`, `format`, `dd`, `shutdown`
 - Auto-approves safe read-only: `ls`, `cat`, `git diff`, `pip list`
-- One-time approval for build commands
-- Path traversal protection — can't access files outside your workspace
+- Path traversal protection — can't access files outside workspace
+- 21-pattern security scanner for code review (reviewer/security.py)
 
 ### Recovery & Rollback
 
-Three layers of safety:
-1. **Recovery Checkpoint** — snapshots file contents before edits; auto-rolls back if build quality worsens
-2. **Context Checkpoint** — saves agent mental state to disk for lossless context rebuild
-3. **Workspace Checkpoint** — full zip snapshots for manual time-travel
+Three layers:
+
+1. **Recovery Checkpoint** (recovery.py) — snapshots files before edits; auto-rolls back if build quality worsens
+2. **Context Checkpoint** (checkpoint.py) — saves agent mental state to disk for lossless rebuild
+3. **Workspace Checkpoint** (checkpoint_service.py) — full zip snapshots for manual time-travel
+
+### Review & Merge Pipeline (5-Step Reliability Stack)
+
+OrcaCode has a systematic pipeline for accepting agent changes:
+
+| Step | Module | What it does |
+|------|--------|-------------|
+| **1. Review & Merge** | merge_gate.py, merge_decision.py | Formal merge decision with deterministic hash, audit trail, and recoverability |
+| **2. Observability** | trace_analytics.py, trend_detector.py | Per-iteration metrics, pattern detection (failure bursts, rollback clusters, stalls) |
+| **3. Reliability** | reliability_engine.py, reliability_sla.py, reviewer_effectiveness.py | SLA enforcement (10 thresholds), reviewer quality (precision/recall/F1), checkpoint integrity |
+| **4. Commitment Enforcer** | commitment_enforcer.py, commitment_chain.py | Immutable ADR compliance audit trail, tiered enforcement (INFO/WARN/CHALLENGE/BLOCK) |
+| **5. Decision Quality** | decision_quality.py | 6-dimension quality scoring, archetype classification, architectural memory |
 
 ### Supported Languages & Tools
 
@@ -174,11 +166,9 @@ Project analysis: Python, JavaScript, TypeScript, Vue, CSS, SCSS, PHP, Ruby
 |------------|---------|-------|
 | Python | 3.8+ | 3.11+ recommended |
 | pip | Latest | Included with Python |
-| Git | Any version | Optional — needed for `git diff`, rollback |
-| Disk space | ~2 GB | Mostly from vendored ML libraries (torch, scipy, easyocr) |
-| RAM | 4 GB | 8 GB recommended if using OCR features |
-| OS | Windows, macOS, Linux | Tested on all three |
-| Node.js | Not required | Only needed if working on JS/TS projects |
+| Git | Any version | Required for `git diff`, rollback |
+| Disk space | ~2 GB | Mostly from vendored libraries (torch, scipy) |
+| RAM | 4 GB | 8 GB recommended |
 
 ### Setup
 
@@ -186,167 +176,153 @@ Project analysis: Python, JavaScript, TypeScript, Vue, CSS, SCSS, PHP, Ruby
 git clone https://github.com/nguyenhuukhanh-25-05-05/OrcaCode.git
 cd OrcaCode
 pip install -r requirements.txt
-```
-
-**First-time setup wizard:**
-```bash
 python orca.py setup
 ```
-Walks you through provider selection, API key entry, and model choice.
+
+The setup wizard prompts for provider, API key, and model.
 
 ### Configuration
 
-OrcaCode stores configuration in two places:
+Config priority: env vars > `~/.orcacode/config.toml` > `.orcacode/config.toml` > `.env`
 
-**`.env` file in the project root** — your API keys and provider settings:
+**`.env`** (project root):
 ```ini
-ORCA_API_KEY=sk-your-api-key-here
+ORCA_API_KEY=sk-your-key
 ORCA_PROVIDER=deepseek
 ORCA_MODEL=deepseek-chat
+ORCA_BASE_URL=https://api.deepseek.com/v1
 ```
 
-**`~/.orca/` directory** — global settings, history, and cached data:
-```
-~/.orca/
-  config.json       # Provider, model, theme preferences
-  memory/           # Long-term memory SQLite database
-  checkpoints/      # Workspace snapshots
-  traces/           # Execution trace logs
+**`.orcacode/config.toml`** (TOML format):
+```toml
+api_key = "sk-your-key"
+provider = "deepseek"
+default_text_model = "deepseek-chat"
 ```
 
-**API keys** — you need an API key from at least one provider:
+**`~/.orcacode/config.toml`** (global, canonical storage).
 
-| Provider | Get API key at | Env variable |
-|----------|---------------|--------------|
-| DeepSeek | platform.deepseek.com | `ORCA_API_KEY` |
-| OpenAI | platform.openai.com/api-keys | `ORCA_API_KEY` or `OPENAI_API_KEY` |
-| Anthropic | console.anthropic.com | `ORCA_API_KEY` or `ANTHROPIC_API_KEY` |
-| Google Gemini | aistudio.google.com | `ORCA_API_KEY` or `GEMINI_API_KEY` |
-| OpenRouter | openrouter.ai/keys | `ORCA_API_KEY` or `OPENROUTER_API_KEY` |
-
-OrcaCode automatically detects which provider your key belongs to. You only need one key — the default `ORCA_API_KEY` works for all providers.
-
-**Supported providers:** DeepSeek, OpenAI, Anthropic (Claude), Google Gemini, OpenRouter
-
-**Swarm mode (separate keys per agent role, optional):**
-```ini
-ORCA_SWARM_ARCHITECT_API_KEY=sk-...
-ORCA_SWARM_ARCHITECT_MODEL=claude-3-5-sonnet
-ORCA_SWARM_DEVELOPER_API_KEY=sk-...
-ORCA_SWARM_DEVELOPER_MODEL=deepseek-chat
-ORCA_SWARM_QA_API_KEY=sk-...
-ORCA_SWARM_QA_MODEL=gpt-4o-mini
-```
+**Supported providers:** DeepSeek, OpenAI, Anthropic (Claude), Google Gemini, OpenRouter, and any OpenAI-compatible endpoint (use `ORCA_BASE_URL`).
 
 ---
 
 ## Usage
 
 ```bash
-# Launch the TUI
+# Plan mode (default) — AI plans, you approve, executes
+orca run "Add user authentication with JWT"
+
+# Auto mode — select from TUI or set config
+orca run "Fix all TypeScript errors in src/"
+
+# Chat mode — selects automatically for simple questions
+orca chat
+
+# TUI with full interface
 orca tui
 
-# CLI mode — AI plans, you approve, executes
-orca "Add user authentication with JWT"
+# Override model per command
+orca run -m gpt-4o "Refactor auth.py"
 
-# CLI mode — full auto, no approval prompts
-orca --auto "Fix all TypeScript errors in src/"
+# View trace analytics & trends
+orca stats
 
-# Chat mode — no file modifications
-orca --chat "Explain how the error pipeline works"
+# Check SLA compliance, reviewer quality, checkpoint integrity
+orca reliability
 
-# Specify model per command
-orca --model claude-sonnet-4-20250514 "Refactor auth.py"
+# View architectural commitment chain
+orca commitments
+
+# Assess historical decision quality
+orca quality
 ```
-
-### TUI Commands
-
-Inside the TUI:
-- Type your request and press Enter to send
-- `@` triggers file path autocomplete
-- `Ctrl+C` interrupts the current operation
-- `Ctrl+V` paste (including images for OCR)
-- Switch provider/model from the top bar dropdown
 
 ---
 
 ## How It Works
 
-### Execution Flow
+### Agent Lifecycle
 
 ```
 User Request
-  → Intent Classification (what does the user want?)
-  → Evidence Gathering (read relevant files)
-  → Confidence Scoring (is this clear enough?)
-  → Plan Generation (AI creates step-by-step plan)
-  → Spec Review (9 checks before approval)
-  → User Approval (review, revise, or cancel)
+  → Intent Classification (intent_router.py)
+  → Evidence Gathering (evidence_collector.py)
+  → Confidence Scoring (confidence_scorer.py, 0-100%)
+  → Plan Generation (AI step-by-step plan)
+  → Spec Review (spec_reviewer.py, 9 checks)
+  → User Approval
   → Execution Loop
-       → AI generates tool calls (WRITE_FILE, PATCH_FILE, RUN_COMMAND)
-       → Tools execute, results fed back
-       → Error pipeline auto-fixes failures
-       → Context checkpointing when memory pressure is high
-       → Loop until DONE or max iterations
-  → Code Review (static analysis + security scan)
+       → AI tool calls (WRITE_FILE, PATCH_FILE, RUN_COMMAND)
+       → Error auto-fix (error_pipeline.py)
+       → Context checkpointing under memory pressure
+       → DONE when complete
+  → Code Review (reviewer/agent.py + security scanner)
   → Evidence Verification (build, lint, test)
+  → Merge Gate (merge_gate.py — deterministic accept/reject)
   → DONE
 ```
 
 ### AI Providers
 
 Single Python client adapts to any provider:
-```python
-# OpenAI / DeepSeek (OpenAI-compatible API)
-# Anthropic (Messages API)
-# Google Gemini (Generative AI SDK)
-# OpenRouter (OpenAI-compatible proxy)
-```
+
+- DeepSeek / OpenAI / OpenRouter: OpenAI-compatible API
+- Anthropic: Messages API
+- Google Gemini: Generative AI SDK
+- Custom: any OpenAI-compatible endpoint via `ORCA_BASE_URL`
 
 ---
 
 ## Architecture
 
 ```
-orca.py                         CLI entry point
-config/                         Configuration (env, settings)
+orca.py                          CLI entry point (15 subcommands)
+config/settings.py               Config loading (.env, TOML, env vars)
 core/
-  agent.py                      Main agent controller
-  agent_tools.py                Tool execution (WRITE_FILE, PATCH_FILE, etc.)
-  tui.py                        Textual terminal interface
-  models.py                     State machine, plan structures
-  prompts/system.py             AI system prompts (CHAT, PLAN, EXECUTE, DESIGN)
-  services/
-    checkpoint.py               Lossless context memory
-    spec_reviewer.py            Pre-execution plan review (9 checks)
-    subagent_contract.py        Typed delegation contracts
-    trace_fingerprint.py        Per-iteration observability log
-    error_pipeline.py           5-layer auto-fix pipeline
-    rule_engine.py             20 deterministic fix rules
-    long_memory.py              SQLite + FTS5 event/task/knowledge store
-    arch_graph.py               Import dependency scanner + ASCII tree
-    dependency_graph.py         File-level dependency resolution
-    recovery.py                 Build-quality auto-rollback
-    patch_service.py            Fuzzy file patching
-    security_service.py         Command blocking, path safety
-    risk_checker.py             Centralized risk assessment
-    plan_validator.py           Plan quality scoring
-    plan_drift.py               Detects execution drift from plan
-    semantic_detector.py        Detects deleted/changed symbols
-    fidelity.py                 Measures context information retention
-    structural_validator.py     Per-language file integrity checks
+  agent.py                       Main agent controller (+ ToolExecutorMixin)
+  agent_tools.py                 Tool execution
+  tui.py / tui/                  Textual TUI (Ocean Blue theme)
+  models.py                      State machine, ExecutionMode, SessionState
+  prompts/system.py              AI prompts (CHAT, PLAN, EXECUTE, DESIGN)
+  services/                      65 service modules
+    merge_gate.py                Step 1: Merge decision gate
+    trace_analytics.py           Step 2: Aggregate analytics
+    trend_detector.py            Step 2: Anomaly detection
+    reliability_engine.py        Step 3: Unified reliability
+    reliability_sla.py           Step 3: SLA definitions
+    reviewer_effectiveness.py    Step 3: Reviewer quality metrics
+    commitment_enforcer.py       Step 4: ADR enforcement
+    commitment_chain.py          Step 4: Immutable audit trail
+    decision_quality.py          Step 5: Historical quality scoring
+    spec_reviewer.py             Pre-execution plan review (9 checks)
+    trace_fingerprint.py         Per-iteration observability log
+    error_pipeline.py            5-layer auto-fix pipeline
+    rule_engine.py               20 deterministic fix rules
+    long_memory.py               SQLite + FTS5 memory store
+    arch_commitment.py           ADR (Architecture Decision Records)
+    patch_service.py             Fuzzy file patching (3 tiers)
+    security_service.py          Command blocking, path safety
+    recovery.py                  Build-quality auto-rollback
+    checkpoint.py                Lossless context memory
+    checkpoint_service.py        Full workspace snapshots
+    plan_drift.py                Architectural drift detection
+    goal_drift.py                Goal drift detection
+    loop_detector.py             Infinite loop prevention
+    subagent_contract.py         Typed delegation contracts
+    fidelity.py                  Context information retention
+    structural_validator.py      Per-language file integrity
   reviewer/
-    agent.py                    LLM-powered code reviewer
-    security.py                 21-pattern security scanner
-    patterns.py                 Bug pattern detection
+    agent.py                     LLM-powered code reviewer
+    security.py                  21-pattern security scanner
+    patterns.py                  Bug pattern detection
   validator/
-    schema_validator.py         JSON/format validation
-    result_validator.py         Tool result consistency
+    schema_validator.py          JSON/format validation
+    result_validator.py          Tool result consistency
   llm/
-    client.py                   Multi-provider client
-    providers.py                Provider adapters
-vendor/                         Bundled Python dependencies
-tests/                          17+ test suites
+    client.py                    Multi-provider client
+    providers.py                 Provider adapters
+vendor/                          Bundled Python dependencies
+tests/                           33 test suites (97+ tests)
 ```
 
 ---
@@ -365,16 +341,15 @@ docker run -it --rm \
 
 ## Credits
 
-OrcaCode's architecture was built by studying and integrating techniques from these open-source projects:
+OrcaCode's architecture was built by studying and integrating techniques from:
 
-| Project | What was learned |
-|---------|-----------------|
+| Project | Contribution |
+|---------|-------------|
 | **Aider** | Map-reduce context assembly, repository map generation, edit formats |
 | **OpenCode** | Terminal-native agent patterns, subagent architecture, plan-review-execute flow |
-| **OpenHands** (formerly OpenDevin) | Autonomous agent orchestration, sandboxed execution |
-| **Cline** (formerly Claude Dev) | Multi-mode execution, terminal integration, tool chaining |
-| **CodeWhale** | Terminal-based coding agent with streaming responses |
-| **CodeGraph** by Colby McHenry | Codebase indexing and symbol-level dependency graph. OrcaCode integrates CodeGraph CLI (MIT) via `core/services/codegraph_service.py` for code intelligence queries (symbol search, caller/callee analysis, semantic exploration). |
+| **OpenHands** | Autonomous agent orchestration, sandboxed execution |
+| **Cline** | Multi-mode execution, terminal integration, tool chaining |
+| **CodeGraph** by Colby McHenry | Codebase indexing and symbol-level dependency graph (MIT, integrated via codegraph_service.py) |
 
 UI design references: shadcn/ui, Radix UI, Headless UI, daisyUI, Chakra UI, Framer Motion, GSAP.
 
@@ -383,8 +358,3 @@ UI design references: shadcn/ui, Radix UI, Headless UI, daisyUI, Chakra UI, Fram
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-### Third-Party Notices
-
-- **CodeGraph** (`codegraph-main/`) is copyright (c) 2026 Colby McHenry, licensed under MIT. OrcaCode integrates it as an optional external CLI tool via `core/services/codegraph_service.py`. CodeGraph source is not redistributed in this repository.
-- Vendored Python libraries under `vendor/` retain their original licenses. See each `*.dist-info/licenses/` directory for details.
