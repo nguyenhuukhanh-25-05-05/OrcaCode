@@ -816,7 +816,7 @@ class AgentController(ToolExecutorMixin, DiagnosticMixin):
                 _spec_report = _spec_reviewer.review_plan(plan_text, user_prompt)
                 _spec_msg = _spec_report.format_compact()
                 if _spec_msg:
-                    cb.on_chat(_spec_msg)
+                    cb.on_chat(f"<SPEC_REVIEW>{_spec_msg}</SPEC_REVIEW>")
                 if not _spec_report.passed:
                     cb.on_chat(
                         f"[#ff4444]⚠️ Spec review found {_spec_report.blocking_count} blocking issue(s). "

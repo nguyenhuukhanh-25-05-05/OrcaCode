@@ -115,6 +115,8 @@ class ChatPanel(VerticalScroll):
         super().__init__(*args, **kwargs)
         self.styles.overflow_x = "hidden"
         self.styles.overflow_y = "scroll"
+        self.styles.scrollbar_size_horizontal = 0
+        self.styles.scrollbar_size_vertical = 0
         self._current_tools_collapsible = None
         self._current_tools_static = None
         self._current_tools_text = ""
@@ -149,7 +151,7 @@ class ChatPanel(VerticalScroll):
         from textual.widgets import Static
         
         # Extract special blocks into collapsibles
-        for tag in ["thought", "TASK_REVIEW", "PLAN_REVIEW"]:
+        for tag in ["thought", "TASK_REVIEW", "PLAN_REVIEW", "SPEC_REVIEW"]:
             match = re.search(fr"<{tag}>(.*?)</{tag}>", text, flags=re.IGNORECASE | re.DOTALL)
             if match:
                 content = match.group(1).strip()
