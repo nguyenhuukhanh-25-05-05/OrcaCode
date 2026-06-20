@@ -6,6 +6,20 @@ Terminal-native AI coding agent. Reads, edits, and generates code directly in yo
 
 ---
 
+## Quick Start
+
+```bash
+git clone https://github.com/nguyenhuukhanh-25-05-05/OrcaCode.git
+cd OrcaCode
+pip install -r requirements.txt
+python orca.py setup          # enter your API key when prompted
+orca tui                      # start coding
+```
+
+That's it. The setup wizard handles provider selection, API key, and model choice automatically.
+
+---
+
 ## What It Does
 
 OrcaCode is an AI agent that lives in your terminal and works directly on your files. You describe what you want, it plans the work, asks for approval, then executes — writing code, running commands, fixing errors, and verifying results.
@@ -151,7 +165,19 @@ Project analysis: Python, JavaScript, TypeScript, Vue, CSS, SCSS, PHP, Ruby
 
 ## Installation
 
-**Requirements:** Python 3.8+, Git (optional)
+### Requirements
+
+| Requirement | Minimum | Notes |
+|------------|---------|-------|
+| Python | 3.8+ | 3.11+ recommended |
+| pip | Latest | Included with Python |
+| Git | Any version | Optional — needed for `git diff`, rollback |
+| Disk space | ~2 GB | Mostly from vendored ML libraries (torch, scipy, easyocr) |
+| RAM | 4 GB | 8 GB recommended if using OCR features |
+| OS | Windows, macOS, Linux | Tested on all three |
+| Node.js | Not required | Only needed if working on JS/TS projects |
+
+### Setup
 
 ```bash
 git clone https://github.com/nguyenhuukhanh-25-05-05/OrcaCode.git
@@ -159,18 +185,43 @@ cd OrcaCode
 pip install -r requirements.txt
 ```
 
-**First-time setup:**
+**First-time setup wizard:**
 ```bash
 python orca.py setup
 ```
 Walks you through provider selection, API key entry, and model choice.
 
-**Environment variables (.env file in project root):**
+### Configuration
+
+OrcaCode stores configuration in two places:
+
+**`.env` file in the project root** — your API keys and provider settings:
 ```ini
 ORCA_API_KEY=sk-your-api-key-here
 ORCA_PROVIDER=deepseek
 ORCA_MODEL=deepseek-chat
 ```
+
+**`~/.orca/` directory** — global settings, history, and cached data:
+```
+~/.orca/
+  config.json       # Provider, model, theme preferences
+  memory/           # Long-term memory SQLite database
+  checkpoints/      # Workspace snapshots
+  traces/           # Execution trace logs
+```
+
+**API keys** — you need an API key from at least one provider:
+
+| Provider | Get API key at | Env variable |
+|----------|---------------|--------------|
+| DeepSeek | platform.deepseek.com | `ORCA_API_KEY` |
+| OpenAI | platform.openai.com/api-keys | `ORCA_API_KEY` or `OPENAI_API_KEY` |
+| Anthropic | console.anthropic.com | `ORCA_API_KEY` or `ANTHROPIC_API_KEY` |
+| Google Gemini | aistudio.google.com | `ORCA_API_KEY` or `GEMINI_API_KEY` |
+| OpenRouter | openrouter.ai/keys | `ORCA_API_KEY` or `OPENROUTER_API_KEY` |
+
+OrcaCode automatically detects which provider your key belongs to. You only need one key — the default `ORCA_API_KEY` works for all providers.
 
 **Supported providers:** DeepSeek, OpenAI, Anthropic (Claude), Google Gemini, OpenRouter
 
